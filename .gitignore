@@ -1,0 +1,42 @@
+# ===== RAHASIA / KREDENSIAL (JANGAN PERNAH di-upload) =====
+.env
+*.env
+!.env.example
+**/.env
+backend/locust_tokens.csv
+**/locust_tokens.csv
+users_to_import.csv
+*_tokens.csv
+
+# ===== Python =====
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ===== Node / Frontend =====
+node_modules/
+**/node_modules/
+dist/
+build/
+.vite/
+*.local
+
+# ===== Data runtime (volume Docker, data mahasiswa) =====
+orchestrator/user_data/
+**/user_data/
+
+# ===== Editor / OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# ===== Output sementara =====
+*.log
+*.pdf
+~$*

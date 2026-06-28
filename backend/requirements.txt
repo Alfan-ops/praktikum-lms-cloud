@@ -1,0 +1,8 @@
+flask
+flask-cors
+requests
+prometheus_client
+supabase >= 2.0.0 
+python-dotenv     
+apscheduler
+redis

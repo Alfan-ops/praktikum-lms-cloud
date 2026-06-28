@@ -1,0 +1,16 @@
+# Provider dashboard otomatis (provisioning).
+# Semua file .json di folder /var/lib/grafana/dashboards akan dimuat sebagai dashboard.
+apiVersion: 1
+
+providers:
+  - name: 'LMS Praktikum'
+    orgId: 1
+    folder: 'LMS Praktikum'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -1,0 +1,12 @@
+# Datasource Prometheus otomatis (provisioning).
+# Grafana akan membaca file ini saat start sehingga tidak perlu setup manual.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  # Service to build the Jupyter single-user image
+  jupyter-image:
+    build: ./jupyter_image # Path to the Dockerfile for the single-user image
+    image: ml-lab-single-user:latest # Tag the built image
+
+  # Frontend React UI Service
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80" # Assuming the frontend container serves on port 80
+    depends_on:
+      - backend
+    networks:
+      - lms-net
+
+  # Backend API
+  backend:
+    build: ./backend
+    ports:
+      - "5001:5001"
+    depends_on:
+      - orchestrator
+      - jupyter-image
+    env_file:
+      - .env 
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:4000
+      - FLASK_APP=management.py
+      - FLASK_RUN_HOST=0.0.0.0
+      - FLASK_RUN_PORT=5001
+      - FLASK_DEBUG=True
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Jakarta
+      - REDIS_URL=redis://redis:6379/0
+      # Autoscaler: maks sesi yang diproses bersamaan oleh scheduler
+      - MAX_SCHEDULER_CONCURRENT=5
+      # Rate limiter: jeda minimum (detik) antar klik tombol start per mahasiswa
+      - LABS_RATE_LIMIT_SECONDS=10
+    volumes:
+      - ./backend:/app
+    networks:
+      - lms-net
+
+  # Orchestrator Service (Handles Docker spawning)
+  orchestrator:
+    build: ./orchestrator
+    # Server produksi (Gunicorn + gevent) menggantikan flask dev server.
+    # --workers 1: WAJIB satu proses agar state semaphore/antrian autoscaler
+    #   tetap global & konsisten (banyak worker = batas global rusak).
+    # --worker-class gevent + --worker-connections: tangani ratusan koneksi
+    #   bersamaan tanpa ConnectionReset/timeout.
+    # --reload: tetap muat ulang otomatis saat app.py diubah (volume mount).
+    command: gunicorn app:app --bind 0.0.0.0:4000 --workers 1 --worker-class gevent --worker-connections 1000 --timeout 120 --reload
+    ports:
+      - "4000:4000"
+    depends_on:
+      - jupyter-image
+    volumes:
+      - ./orchestrator/app.py:/app/app.py
+      # wajib: agar orchestrator bisa bikin container lain
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # wajib: user_data di host ↔ /app/user_data di orchestrator
+      - ./orchestrator/user_data:/app/user_data
+
+      # source notebook (read-only)
+      - ./orchestrator/notebooks:/app/notebooks:ro
+
+      - ./orchestrator/modules:/app/modules
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_RUN_HOST=0.0.0.0
+      - FLASK_RUN_PORT=4000
+      - FLASK_DEBUG=True
+      - PYTHONUNBUFFERED=1
+
+      # penting untuk URL Jupyter
+      - ACCESSIBLE_HOST=localhost
+
+      # path internal container
+      - SOURCE_NOTEBOOK_PATH=/app/notebooks/praktikum_ml_iris.ipynb
+      - NOTEBOOK_SOURCE_DIR=/app/notebooks
+      - FLASK_MODULE_SOURCE_DIR=/app/flask_modules
+      - STREAMLIT_SOURCE_DIR=/app/streamlit_apps
+      - JUPYTER_IMAGE=ml-lab-single-user:latest
+      - FLASK_IMAGE=praktikum-flask:latest
+      - STREAMLIT_IMAGE=praktikum-streamlit:latest
+      - TZ=Asia/Jakarta
+      
+      - USER_DATA_PATH=/app/user_data
+      - HOST_USER_DATA_PATH=/host_mnt/d/praktikum-lms-project/orchestrator/user_data
+      - HOST_MODULES_PATH=/host_mnt/d/praktikum-lms-project/orchestrator/modules
+      # Autoscaler orchestrator: maks docker run bersamaan
+      - MAX_CONCURRENT_DEPLOYS=5
+      # Maks antrian async yang diizinkan
+      - DEPLOY_QUEUE_MAX=50
+    networks:
+      - lms-net
+
+  cadvisor:
+      image: gcr.io/cadvisor/cadvisor:v0.47.2
+      container_name: cadvisor
+      ports:
+        - "8080:8080"
+      volumes:
+        - /:/rootfs:ro
+        - /var/run:/var/run:ro
+        - /sys:/sys:ro
+        - /var/lib/docker/:/var/lib/docker:ro
+        - /dev/disk/:/dev/disk:ro
+      privileged: true
+      devices:
+        - /dev/kmsg
+      restart: always
+      networks:
+        - lms-net
+
+  # Prometheus Monitoring Service
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus 
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - lms-net
+    depends_on:
+      - backend
+      - cadvisor
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - lms-net
+
+networks:
+  lms-net:
+    driver: bridge
+
+volumes:
+  prometheus_data:
