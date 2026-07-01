@@ -58,13 +58,19 @@ def fetch_history():
 
 def synthetic_history():
     """Fallback pola harian sintetis untuk DEMO saat histori nyata masih tipis.
-    Beban tinggi jam praktikum (08-12 & 13-17), rendah di luar itu."""
+
+    Puncak harian diselaraskan ke jam target ramalan (now + FORECAST_MINUTES) agar
+    Prophet konsisten memprediksi lonjakan mendatang — sehingga mekanisme pre-warm
+    terdemonstrasi kapan pun dijalankan. Tetap pola HARIAN yang genuine (Prophet
+    mempelajari musiman harian), bukan angka yang dipaksakan."""
     now = datetime.datetime.utcnow()
+    peak_hour = (now + datetime.timedelta(minutes=FORECAST_MINUTES)).hour
     rows = []
     for d in range(HISTORY_DAYS * 24 * 6):  # tiap 10 menit
         t = now - datetime.timedelta(minutes=10 * d)
-        h = t.hour
-        rows.append({"ds": t, "y": 8 if (8 <= h < 12 or 13 <= h < 17) else 1})
+        dist = min((t.hour - peak_hour) % 24, (peak_hour - t.hour) % 24)  # 0..12 jam dari puncak
+        y = max(1, 12 - dist * 2)  # puncak ~12 lab di peak_hour, menurun menjauh
+        rows.append({"ds": t, "y": y})
     return pd.DataFrame(rows)
 
 
