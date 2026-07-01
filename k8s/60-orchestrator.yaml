@@ -1,17 +1,6 @@
-# Orchestrator — Service disediakan agar DNS "orchestrator:4000" resolve.
-#
-# ⚠️ PENTING: Deployment orchestrator masih PLACEHOLDER.
-# Di arsitektur Docker, orchestrator memakai Docker SDK + akses /var/run/docker.sock
-# untuk membuat container lab. Itu TIDAK berlaku di Kubernetes.
-#
-# Pada FASE 3 (rewrite), orchestrator akan:
-#   - memakai Kubernetes Python client (bukan Docker SDK),
-#   - membuat Deployment + Service + Ingress per mahasiswa (bukan docker run),
-#   - memakai ServiceAccount + RBAC (bukan docker.sock),
-#   - PVC untuk data mahasiswa (bukan bind mount host).
-#
-# Untuk sekarang, Deployment di bawah hanya menjaga agar Service ada. Ganti
-# image & command setelah rewrite selesai.
+# Orchestrator versi Kubernetes (app_k8s.py).
+# Membuat Deployment+Service+Ingress per mahasiswa via Kubernetes API.
+# Butuh RBAC (61-orchestrator-rbac.yaml) & imagePullSecret OCIR (dibuat di Fase 2).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,22 +8,44 @@ metadata:
   namespace: lms-praktikum
   labels: { app: orchestrator }
 spec:
-  replicas: 1
+  replicas: 1   # WAJIB 1: state semaphore/antrian autoscaler di memori 1 proses
   selector:
     matchLabels: { app: orchestrator }
   template:
     metadata:
       labels: { app: orchestrator }
     spec:
-      # serviceAccountName: orchestrator   # <- aktifkan setelah RBAC dibuat (Fase 3)
+      serviceAccountName: orchestrator
+      imagePullSecrets:
+        - name: ocir-secret
       containers:
         - name: orchestrator
-          image: hsg.ocir.io/axyfpuh4ahcf/praktikum-orchestrator:latest
+          image: hsg.ocir.io/axyfpuh4ahcf/praktikum-orchestrator-k8s:latest
           ports:
             - containerPort: 4000
+          env:
+            - name: LAB_NAMESPACE
+              value: "lms-praktikum"
+            - name: JUPYTER_IMAGE
+              value: "hsg.ocir.io/axyfpuh4ahcf/ml-lab-single-user:latest"
+            - name: IMAGE_PULL_SECRET
+              value: "ocir-secret"
+            - name: INGRESS_CLASS
+              value: "nginx"
+            # ACCESSIBLE_HOST = IP publik Ingress Controller (isi setelah LB dibuat, Fase 2)
+            - name: ACCESSIBLE_HOST
+              value: "CHANGEME_INGRESS_IP"
+            - name: MAX_CONCURRENT_DEPLOYS
+              value: "10"
+            - name: DEPLOY_QUEUE_MAX
+              value: "200"
           resources:
             requests: { cpu: "100m", memory: "128Mi" }
             limits: { cpu: "500m", memory: "512Mi" }
+          readinessProbe:
+            httpGet: { path: /health, port: 4000 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
 ---
 apiVersion: v1
 kind: Service

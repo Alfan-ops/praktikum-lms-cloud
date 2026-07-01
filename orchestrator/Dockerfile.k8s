@@ -1,0 +1,20 @@
+# Dockerfile untuk orchestrator versi KUBERNETES (app_k8s.py).
+# Dipisah dari Dockerfile (Docker SDK) agar deployment Docker yang lama tidak terganggu.
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Build tools agar gevent bisa di-compile di ARM (aarch64).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc build-essential libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-k8s.txt .
+RUN pip install --no-cache-dir -r requirements-k8s.txt
+
+COPY app_k8s.py .
+
+# --workers 1 WAJIB: state semaphore/antrian autoscaler ada di memori 1 proses.
+CMD ["gunicorn", "app_k8s:app", "--bind", "0.0.0.0:4000", \
+     "--workers", "1", "--worker-class", "gevent", \
+     "--worker-connections", "1000", "--timeout", "120"]

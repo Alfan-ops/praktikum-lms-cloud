@@ -27,9 +27,17 @@ build_push() {
 
 build_push backend      ./backend
 build_push frontend     ./frontend
+
+# Orchestrator versi Docker (untuk deployment single-host / VM).
 build_push orchestrator ./orchestrator
 
-# Image lab Jupyter (dipakai orchestrator saat spawn Pod lab di Fase 3).
+# Orchestrator versi KUBERNETES (app_k8s.py) — dipakai di cluster OKE.
+echo "=== Build orchestrator-k8s (Dockerfile.k8s) ==="
+docker build -f ./orchestrator/Dockerfile.k8s -t "$REGISTRY/praktikum-orchestrator-k8s:$TAG" ./orchestrator
+docker push "$REGISTRY/praktikum-orchestrator-k8s:$TAG"
+echo ""
+
+# Image lab Jupyter (dipakai orchestrator saat spawn Pod lab).
 echo "=== Build jupyter lab image ==="
 docker build -t "$REGISTRY/ml-lab-single-user:$TAG" ./jupyter_image
 docker push "$REGISTRY/ml-lab-single-user:$TAG"
