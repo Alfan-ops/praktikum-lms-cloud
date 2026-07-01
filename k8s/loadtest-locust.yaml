@@ -1,0 +1,96 @@
+# Uji beban Locust (Fase 6) — menembak orchestrator /deploy dari DALAM cluster.
+# Menghasilkan grafik RPS, waktu respons, & tingkat kegagalan (format sama dgn T50).
+#
+# PAKAI:
+#   kubectl apply -f k8s/loadtest-locust.yaml
+#   kubectl -n lms-praktikum port-forward svc/locust 8089:8089
+#   (buka Web Preview Cloud Shell port 8089 -> UI Locust)
+#
+# BERSIHKAN setelah tes:
+#   kubectl -n lms-praktikum delete -f k8s/loadtest-locust.yaml
+#   kubectl -n lms-praktikum delete deploy,svc,ingress -l app=lab
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: locust-script
+  namespace: lms-praktikum
+data:
+  locustfile.py: |
+    import uuid, threading
+    from locust import HttpUser, task, between, events
+
+    NOTEBOOK = "praktikum_ml_iris.ipynb"
+    _counter = 0
+    _lock = threading.Lock()
+
+    def next_group():
+        global _counter
+        with _lock:
+            _counter += 1
+            return f"load-{_counter}-{uuid.uuid4().hex[:6]}"
+
+    class LabUser(HttpUser):
+        # Tiap user virtual = 1 mahasiswa yang Launch Lab sekali, lalu memantau status.
+        wait_time = between(2, 5)
+
+        def on_start(self):
+            g = next_group()
+            with self.client.post(
+                "/deploy",
+                json={"group": g, "tool": "jupyter", "module": NOTEBOOK},
+                name="POST /deploy (Launch Lab)",
+                catch_response=True,
+            ) as r:
+                if r.status_code in (200, 202):
+                    r.success()
+                else:
+                    r.failure(f"status {r.status_code}: {r.text[:100]}")
+
+        @task
+        def check_status(self):
+            self.client.get("/autoscaler/status", name="GET /autoscaler/status")
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust
+  namespace: lms-praktikum
+  labels: { app: locust }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: locust }
+  template:
+    metadata:
+      labels: { app: locust }
+    spec:
+      containers:
+        - name: locust
+          image: docker.io/locustio/locust:latest
+          args:
+            - "-f"
+            - "/mnt/locust/locustfile.py"
+            - "--host"
+            - "http://orchestrator:4000"
+          ports:
+            - containerPort: 8089
+          volumeMounts:
+            - name: script
+              mountPath: /mnt/locust
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: script
+          configMap: { name: locust-script }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: locust
+  namespace: lms-praktikum
+spec:
+  selector: { app: locust }
+  ports:
+    - port: 8089
+      targetPort: 8089
