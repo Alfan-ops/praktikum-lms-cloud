@@ -1,0 +1,70 @@
+# Estimator (FB Prophet) — meramal beban & mengatur jumlah placeholder (pre-warm).
+# Butuh izin mengubah skala Deployment placeholder di namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: estimator
+  namespace: lms-praktikum
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: estimator-role
+  namespace: lms-praktikum
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: estimator-rolebinding
+  namespace: lms-praktikum
+subjects:
+  - kind: ServiceAccount
+    name: estimator
+    namespace: lms-praktikum
+roleRef:
+  kind: Role
+  name: estimator-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: estimator
+  namespace: lms-praktikum
+  labels: { app: estimator }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: estimator }
+  template:
+    metadata:
+      labels: { app: estimator }
+    spec:
+      serviceAccountName: estimator
+      imagePullSecrets:
+        - name: ocir-secret
+      containers:
+        - name: estimator
+          image: hsg.ocir.io/axyfpuh4ahcf/praktikum-estimator:latest
+          env:
+            - name: PROMETHEUS_URL
+              value: "http://prometheus:9090"
+            - name: NAMESPACE
+              value: "lms-praktikum"
+            - name: PLACEHOLDER_DEPLOYMENT
+              value: "capacity-placeholder"
+            - name: LABS_PER_NODE
+              value: "10"
+            - name: FORECAST_MINUTES
+              value: "30"
+            - name: INTERVAL_SECONDS
+              value: "300"
+            - name: MAX_PLACEHOLDER
+              value: "2"
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "1Gi" }

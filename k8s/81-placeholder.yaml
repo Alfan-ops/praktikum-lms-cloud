@@ -1,0 +1,25 @@
+# Placeholder Deployment — "pemesan tempat" agar Cluster Autoscaler pre-provision node.
+# Tiap pod meminta resource ~1 node (A1 2 OCPU/12GB) sehingga 1 placeholder ≈ 1 node.
+# Jumlah replika DIATUR OTOMATIS oleh estimator (Prophet). Awalnya 0.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capacity-placeholder
+  namespace: lms-praktikum
+  labels: { app: capacity-placeholder }
+spec:
+  replicas: 0
+  selector:
+    matchLabels: { app: capacity-placeholder }
+  template:
+    metadata:
+      labels: { app: capacity-placeholder }
+    spec:
+      priorityClassName: placeholder-low
+      terminationGracePeriodSeconds: 0
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9
+          resources:
+            # ~1 node A1 (2 OCPU/12GB): 1 placeholder tidak muat 2/node -> memicu 1 node/placeholder
+            requests: { cpu: "1200m", memory: "5Gi" }

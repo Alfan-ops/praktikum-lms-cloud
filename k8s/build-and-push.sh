@@ -37,6 +37,12 @@ docker build -f ./orchestrator/Dockerfile.k8s -t "$REGISTRY/praktikum-orchestrat
 docker push "$REGISTRY/praktikum-orchestrator-k8s:$TAG"
 echo ""
 
+# Estimator (FB Prophet) — Fase 5 predictive. Build bisa lama di ARM (compile stan).
+echo "=== Build estimator (FB Prophet) ==="
+docker build -t "$REGISTRY/praktikum-estimator:$TAG" ./estimator
+docker push "$REGISTRY/praktikum-estimator:$TAG"
+echo ""
+
 # Image lab Jupyter (dipakai orchestrator saat spawn Pod lab).
 echo "=== Build jupyter lab image ==="
 docker build -t "$REGISTRY/ml-lab-single-user:$TAG" ./jupyter_image

@@ -1,0 +1,10 @@
+# PriorityClass untuk placeholder pod (prioritas rendah / negatif).
+# Pod lab mahasiswa memakai prioritas default (0) > -10, sehingga saat lab dibuat,
+# scheduler MENGUSIR placeholder dan lab langsung menempati node yang sudah hangat.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: placeholder-low
+value: -10
+globalDefault: false
+description: "Placeholder pre-warm; diusir oleh workload nyata (lab)."
