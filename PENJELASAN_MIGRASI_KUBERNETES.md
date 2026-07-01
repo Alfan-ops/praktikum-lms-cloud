@@ -102,6 +102,52 @@ Langkah nyata di Oracle Cloud:
 6. Set IP Ingress (`168.110.219.203`) ke orchestrator.
 7. **LMS online di http://168.110.219.203** ✅
 
+### Fase 4 — Reactive Autoscaling (Cluster Autoscaler)
+**Tujuan:** node bertambah **otomatis** saat pod tidak muat, dan berkurang saat sepi.
+
+**Cara kerja:** Cluster Autoscaler (CA) memantau pod yang `Pending` (tak dapat node).
+Jika ada, ia memerintahkan OKE menambah node ke node pool. Saat node kosong lama,
+ia menghapusnya.
+
+**Komponen yang dibuat:**
+- `k8s/cluster-autoscaler.yaml` — CA standalone (OKE Basic), autentikasi **instance principal**.
+- **IAM di Oracle Console:** Dynamic Group `oke-ca-dg` (semua node jadi anggotanya) +
+  Policy `oke-ca-policy` (izin CA mengelola node pool). Tanpa ini, CA tak berhak
+  menambah node.
+
+**Terbukti:** buat 5 pod dummy besar → 3 Pending → CA menambah node **1 → 3** otomatis;
+setelah pod dihapus → CA menurunkan lagi **3 → 1**. Scale **naik & turun** bekerja.
+
+### Fase 5 — Predictive Autoscaling (FB Prophet)
+**Tujuan:** menyiapkan node **SEBELUM** lonjakan (bukan menunggu pod Pending), sehingga
+mahasiswa tidak menunggu 3–5 menit provisioning node.
+
+**Perbedaan reactive vs predictive:**
+| Reactive (Fase 4) | Predictive (Fase 5) |
+|---|---|
+| Node ditambah **setelah** pod Pending | Node disiapkan **sebelum** beban datang |
+| Ada jeda provisioning saat sibuk | Node sudah hangat saat mahasiswa Launch Lab |
+
+**Cara kerja:**
+```
+FB Prophet (ramal histori beban) → prediksi jumlah lab jam depan
+   → hitung node yang dibutuhkan → atur jumlah "placeholder pod" (prioritas rendah)
+      → Cluster Autoscaler pre-provision node LEBIH DULU
+         → mahasiswa Launch Lab (prioritas normal) → usir placeholder → lab langsung jalan
+```
+
+**Komponen yang dibuat:**
+- `estimator/predictive_scaler.py` — layanan Prophet: ramal beban → atur replika placeholder.
+- `k8s/80-priorityclass.yaml` — prioritas rendah untuk placeholder (mudah diusir lab).
+- `k8s/81-placeholder.yaml` — "pemesan tempat" (pause pod) sebesar ~1 node.
+- `k8s/82-estimator.yaml` — estimator + RBAC untuk mengatur skala placeholder.
+
+**Terbukti:** log estimator `ramalan puncak lab=11.0 -> butuh 2 node -> placeholder=1`
+→ CA menyiapkan node ke-2 **karena ramalan**, bukan karena beban nyata.
+
+> Reactive & predictive **saling melengkapi**: predictive menyiapkan kapasitas untuk pola
+> yang terprediksi; reactive menangani lonjakan tak terduga sebagai jaring pengaman.
+
 ---
 
 ## D. Masalah yang Ditemui & Solusinya (Bagian Belajar Terpenting)
@@ -201,13 +247,16 @@ kubectl -n lms-praktikum rollout restart deployment/backend
 
 ---
 
-## G. Yang Belum Dikerjakan (Fase 4–6)
+## G. Status Fase
 
-| Fase | Isi | Kebutuhan |
+| Fase | Isi | Status |
 |---|---|---|
-| 4. Cluster Autoscaler | Node nambah otomatis saat pod penuh | setup CA di OKE Basic |
-| 5. Prophet → predictive | Forecast beban → pre-scale node lebih dulu | inti klaim "predictive" |
-| 6. Uji 100 user | Grafik "100 user, 0% gagal" | node berbayar (wajib teardown) |
+| 1. Manifest dasar | Definisi resource K8s | ✅ Selesai |
+| 2. Cluster + deploy | OKE + LMS online | ✅ Selesai |
+| 3. Rewrite orchestrator | Docker SDK → K8s API | ✅ Tervalidasi |
+| 4. Cluster Autoscaler | Node otomatis (reactive) | ✅ Terbukti (1↔3 node) |
+| 5. Prophet → predictive | Pre-warm node dari ramalan | ✅ Terbukti |
+| 6. Uji 100 user | Grafik "100 user, 0% gagal" | ⏳ Belum (node berbayar, wajib teardown) |
 
 ---
 
@@ -231,6 +280,9 @@ satu mesin. Kami memigrasinya ke Kubernetes: menulis manifest untuk tiap kompone
 (Fase 1), menulis ulang orchestrator agar membuat lab sebagai Pod/Service/Ingress lewat
 Kubernetes API alih-alih Docker (Fase 3), lalu membuat cluster OKE gratis dan
 men-deploy semuanya hingga LMS online di http://168.110.219.203 dengan pembuatan lab
-dinamis yang sudah terbukti bekerja (Fase 2). Langkah berikutnya adalah autoscaling
-lintas node (Fase 4), penskalaan prediktif berbasis FB Prophet (Fase 5), dan validasi
-100 pengguna (Fase 6) yang memerlukan node berbayar.
+dinamis yang sudah terbukti bekerja (Fase 2). Lalu kami memasang **autoscaling reaktif**
+(Cluster Autoscaler menambah/mengurangi node otomatis, terbukti 1↔3 node — Fase 4) dan
+**autoscaling prediktif** (FB Prophet meramal beban lalu menyiapkan node lebih dulu —
+Fase 5). Hasilnya: dari sistem yang crash di ~50 user pada satu host (T50), menjadi
+platform Kubernetes multi-node dengan penskalaan reaktif **dan** prediktif. Yang tersisa
+hanya validasi beban 100 pengguna (Fase 6) yang memerlukan node berbayar.
