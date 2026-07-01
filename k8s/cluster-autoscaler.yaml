@@ -137,8 +137,9 @@ spec:
       serviceAccountName: cluster-autoscaler
       containers:
         - name: cluster-autoscaler
-          # Ganti tag agar cocok dgn versi cluster (v1.36). Kalau gagal pull, coba v1.35.0.
-          image: iad.ocir.io/oracle/oci-cluster-autoscaler:v1.36.0
+          # Format tag Oracle: <versi>.<patch>-<build> (mis. 1.34.3-323 utk K8s 1.34/1.35).
+          # Cek tag terbaru di dokumentasi OKE bila cluster versinya lebih tinggi.
+          image: iad.ocir.io/oracle/oci-cluster-autoscaler:1.34.3-323
           command:
             - ./cluster-autoscaler
             - --v=4
