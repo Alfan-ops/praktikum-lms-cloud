@@ -1,0 +1,43 @@
+# Ingress — pintu masuk dari internet ke frontend & grafana.
+# Butuh Ingress Controller terpasang (mis. ingress-nginx).
+# Ganti host sesuai domain/IP Anda, atau hapus 'host' untuk akses via IP saja.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lms-ingress
+  namespace: lms-praktikum
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  ingressClassName: nginx
+  rules:
+    # LMS utama (frontend). Frontend sudah mem-proxy /api ke backend secara internal.
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+---
+# Grafana dipisah agar tidak bentrok path dengan frontend.
+# Akses via path /grafana (butuh GF_SERVER_ROOT_URL bila ingin subpath — opsional).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: lms-praktikum
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000

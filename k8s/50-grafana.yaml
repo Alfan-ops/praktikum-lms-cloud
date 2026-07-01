@@ -1,0 +1,91 @@
+# Grafana — visualisasi. Datasource & dashboard provider via ConfigMap.
+# Dashboard JSON (lms-containers.json) dibuat sebagai ConfigMap terpisah via kubectl
+# (lihat k8s/README.md), lalu di-mount ke /var/lib/grafana/dashboards.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource
+  namespace: lms-praktikum
+data:
+  prometheus.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: lms-praktikum
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: 'LMS Praktikum'
+        orgId: 1
+        folder: 'LMS Praktikum'
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: lms-praktikum
+  labels: { app: grafana }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: "admin"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          volumeMounts:
+            - name: datasource
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: datasource
+          configMap: { name: grafana-datasource }
+        - name: dashboard-provider
+          configMap: { name: grafana-dashboard-provider }
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+            optional: true   # dibuat via kubectl from-file (lihat README)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: lms-praktikum
+spec:
+  selector: { app: grafana }
+  ports:
+    - port: 3000
+      targetPort: 3000

@@ -1,0 +1,7 @@
+# Namespace khusus untuk semua resource LMS Praktikum.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lms-praktikum
+  labels:
+    app.kubernetes.io/part-of: lms-praktikum

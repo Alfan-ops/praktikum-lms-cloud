@@ -1,0 +1,48 @@
+# Orchestrator — Service disediakan agar DNS "orchestrator:4000" resolve.
+#
+# ⚠️ PENTING: Deployment orchestrator masih PLACEHOLDER.
+# Di arsitektur Docker, orchestrator memakai Docker SDK + akses /var/run/docker.sock
+# untuk membuat container lab. Itu TIDAK berlaku di Kubernetes.
+#
+# Pada FASE 3 (rewrite), orchestrator akan:
+#   - memakai Kubernetes Python client (bukan Docker SDK),
+#   - membuat Deployment + Service + Ingress per mahasiswa (bukan docker run),
+#   - memakai ServiceAccount + RBAC (bukan docker.sock),
+#   - PVC untuk data mahasiswa (bukan bind mount host).
+#
+# Untuk sekarang, Deployment di bawah hanya menjaga agar Service ada. Ganti
+# image & command setelah rewrite selesai.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: lms-praktikum
+  labels: { app: orchestrator }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: orchestrator }
+  template:
+    metadata:
+      labels: { app: orchestrator }
+    spec:
+      # serviceAccountName: orchestrator   # <- aktifkan setelah RBAC dibuat (Fase 3)
+      containers:
+        - name: orchestrator
+          image: docker.io/CHANGEME/praktikum-orchestrator:latest
+          ports:
+            - containerPort: 4000
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+  namespace: lms-praktikum
+spec:
+  selector: { app: orchestrator }
+  ports:
+    - port: 4000
+      targetPort: 4000
