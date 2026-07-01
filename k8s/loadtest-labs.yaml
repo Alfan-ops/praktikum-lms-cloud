@@ -1,0 +1,46 @@
+# Uji beban Fase 6: kirim N permintaan Launch Lab konkuren ke orchestrator.
+# Tiap permintaan membuat 1 pod lab -> Cluster Autoscaler menambah node.
+# Atur jumlah lewat env N (default 30). Jalankan sebagai Job sekali pakai.
+#
+# PAKAI:
+#   kubectl apply -f k8s/loadtest-labs.yaml
+#   kubectl -n lms-praktikum logs -f job/loadtest-labs
+#
+# BERSIHKAN setelah tes (WAJIB — pod lab & node berbayar):
+#   kubectl -n lms-praktikum delete job loadtest-labs
+#   kubectl -n lms-praktikum delete deploy,svc,ingress -l app=lab
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: loadtest-labs
+  namespace: lms-praktikum
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: loadtest
+          image: docker.io/curlimages/curl:latest
+          env:
+            - name: N
+              value: "30"          # jumlah "mahasiswa" simultan (ubah utk skala lebih besar)
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Mengirim $N permintaan Launch Lab konkuren ke orchestrator..."
+              start=$(date +%s)
+              for i in $(seq 1 "$N"); do
+                (
+                  code=$(curl -s -o /dev/null -w "%{http_code}" \
+                    -X POST http://orchestrator:4000/deploy \
+                    -H "Content-Type: application/json" \
+                    -d "{\"group\":\"load$i\",\"notebook\":\"praktikum_ml_iris.ipynb\"}")
+                  echo "mahasiswa $i -> HTTP $code"
+                ) &
+              done
+              wait
+              end=$(date +%s)
+              echo "SELESAI: $N permintaan terkirim dalam $((end-start)) detik."
+              echo "Pantau: kubectl -n lms-praktikum get pods -l app=lab | grep -c Running"
+              echo "        kubectl get nodes"
