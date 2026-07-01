@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: docker.io/CHANGEME/praktikum-frontend:latest
+          image: hsg.ocir.io/axyfpuh4ahcf/praktikum-frontend:latest
           ports:
             - containerPort: 80
           resources:

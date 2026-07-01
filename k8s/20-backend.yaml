@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: docker.io/CHANGEME/praktikum-backend:latest
+          image: hsg.ocir.io/axyfpuh4ahcf/praktikum-backend:latest
           ports:
             - containerPort: 5001
           env:
