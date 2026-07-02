@@ -1,0 +1,77 @@
+# Isolasi jaringan pod lab (multi-tenant hardening).
+#
+# MASALAH: Jupyter memberi mahasiswa eksekusi kode arbitrer. Tanpa NetworkPolicy,
+# pod lab bisa menghubungi layanan internal (orchestrator:4000 yang TANPA auth,
+# backend:5001, redis:6379) maupun pod lab mahasiswa lain -> bisa mematikan/
+# men-spawn lab orang lain atau menyalahgunakan sumber daya.
+#
+# SOLUSI: policy ini mengunci pod berlabel app=lab:
+#   - INGRESS: hanya menerima trafik dari Ingress Controller (ingress-nginx),
+#     sehingga mahasiswa tetap bisa mengakses lab via browser, tapi pod lain
+#     (termasuk lab lain) TIDAK bisa mengetuk pod lab.
+#   - EGRESS: hanya boleh DNS (agar nama domain resolve) + internet publik.
+#     Semua alamat privat cluster (10/8, 172.16/12, 192.168/16) DIBLOKIR,
+#     sehingga lab tak bisa menjangkau orchestrator/backend/redis/pod lab lain.
+#
+# PENTING (OKE): NetworkPolicy hanya BERLAKU bila CNI mendukungnya. OKE dengan
+# flannel TIDAK menegakkan NetworkPolicy secara default -> pasang Calico untuk
+# policy enforcement (`oci`/Calico). Verifikasi setelah apply (lihat bagian UJI).
+#
+# PAKAI:
+#   kubectl apply -f k8s/91-netpol-lab-isolation.yaml
+#
+# UJI (dari dalam sebuah pod lab, harus GAGAL menjangkau orchestrator):
+#   kubectl -n lms-praktikum exec deploy/<nama-lab> -- \
+#     sh -c "curl -m 5 -s -o /dev/null -w '%{http_code}\n' http://orchestrator:4000/health || echo BLOCKED"
+#   # Harapan: BLOCKED / timeout (bukan 200).
+#
+# HAPUS:
+#   kubectl -n lms-praktikum delete netpol lab-isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lab-isolation
+  namespace: lms-praktikum
+  labels: { app: lab }
+spec:
+  # Berlaku untuk SEMUA pod lab.
+  podSelector:
+    matchLabels:
+      app: lab
+  policyTypes:
+    - Ingress
+    - Egress
+
+  # ---- INGRESS: hanya dari Ingress Controller ----
+  ingress:
+    - from:
+        # Trafik dari namespace ingress-nginx (label standar namespace).
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8888
+
+  # ---- EGRESS: DNS + internet publik saja (blok internal cluster) ----
+  egress:
+    # 1) Izinkan DNS ke kube-dns (CoreDNS) di kube-system.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # 2) Izinkan internet publik, TAPI kecualikan seluruh rentang privat
+    #    (10/8, 172.16/12, 192.168/16) -> memblokir orchestrator, backend,
+    #    redis, prometheus, dan pod lab lain yang semuanya beralamat privat.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
