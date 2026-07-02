@@ -21,7 +21,9 @@ RUN pip install --no-cache-dir \
 
 # Bake notebook ke workspace. WAJIB untuk Kubernetes: tidak ada volume-copy seperti
 # di versi Docker (app.py), jadi notebook harus sudah ada di dalam image.
+# Modul Iris (ML dasar) + Modul Telekomunikasi (prediksi kualitas sinyal jaringan).
 COPY praktikum_ml_iris.ipynb /home/jovyan/work/
+COPY ML_Telekomunikasi_Praktikum.ipynb /home/jovyan/work/
 
 # Pastikan kepemilikan file benar
 USER root

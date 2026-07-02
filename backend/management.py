@@ -135,6 +135,28 @@ def get_user_from_token():
         logging.warning(f"Failed to get user from token: {e}")
         return None
 
+# Peta kata-kunci judul modul -> berkas notebook yang di-bake di image lab.
+# Notebook harus sudah ada di /home/jovyan/work (lihat jupyter_image/Dockerfile).
+DEFAULT_NOTEBOOK = "praktikum_ml_iris.ipynb"
+NOTEBOOK_BY_KEYWORD = [
+    (("telekom", "sinyal", "jaringan", "telco", "telco"), "ML_Telekomunikasi_Praktikum.ipynb"),
+    (("iris",), "praktikum_ml_iris.ipynb"),
+]
+
+
+def notebook_for_module(supabase, module_id):
+    """Tentukan notebook berdasarkan judul modul. Fallback ke DEFAULT_NOTEBOOK."""
+    try:
+        res = supabase.table("modules").select("module_title").eq("id", module_id).single().execute()
+        title = ((res.data or {}).get("module_title") or "").lower()
+        for keywords, nb in NOTEBOOK_BY_KEYWORD:
+            if any(k in title for k in keywords):
+                return nb
+    except Exception as e:
+        logging.warning(f"notebook_for_module({module_id}) gagal, pakai default: {e}")
+    return DEFAULT_NOTEBOOK
+
+
 def start_scheduled_session(schedule):
     """Calls orchestrator to deploy a container for a schedule."""
     supabase = get_supabase_client()
@@ -151,9 +173,8 @@ def start_scheduled_session(schedule):
         
         group_key = user_res.data.get("nim", schedule['student_id'])
 
-        # TODO: Get notebook name from module content
-        # For now, we hardcode it as you did.
-        notebook_name = "praktikum_ml_iris.ipynb"
+        # Pilih notebook sesuai modul jadwal (mis. modul telekomunikasi -> notebook telko).
+        notebook_name = notebook_for_module(supabase, schedule.get("module_id"))
 
         orch_res = requests.post(
             f"{ORCHESTRATOR_URL}/deploy",
