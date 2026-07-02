@@ -4,7 +4,10 @@
 # (dask, numba, bokeh, sympy, statsmodels, dll). Sekarang: base MINIMAL + hanya library
 # yang benar-benar dipakai notebook praktikum Iris. Image lebih kecil = pull lebih cepat
 # di tiap node baru = scale-out lebih cepat (mengatasi bottleneck yang ditemukan di Fase 6).
-FROM docker.io/jupyter/minimal-notebook:latest
+# Registry resmi Jupyter saat ini = quay.io (multi-arch: amd64 + arm64).
+# Docker Hub jupyter/* sudah deprecated & minimal-notebook di sana amd64-only
+# (menyebabkan "exec format error" di node ARM).
+FROM quay.io/jupyter/minimal-notebook:latest
 
 # Hanya library yang dipakai praktikum_ml_iris.ipynb:
 # pandas, scikit-learn, matplotlib, seaborn (numpy/scipy ikut sebagai dependensi).
