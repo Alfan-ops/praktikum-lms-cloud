@@ -26,6 +26,11 @@ CORS(app)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 ORCHESTRATOR_URL = os.environ.get("ORCHESTRATOR_URL", "http://orchestrator:4000")
+# Shared-secret untuk mengautentikasi panggilan ke orchestrator (/deploy, /stop).
+# Hanya backend yang tahu token ini; pod lab (Jupyter) tidak, sehingga panggilan
+# langsung dari dalam lab ke orchestrator ditolak 401. Lihat orchestrator/app_k8s.py.
+ORCH_TOKEN = os.environ.get("ORCH_TOKEN", "")
+ORCH_HEADERS = {"X-Orch-Token": ORCH_TOKEN} if ORCH_TOKEN else {}
 REDIS_URL = os.environ.get("REDIS_URL")
 
 # --- Initialize Redis ---
@@ -159,6 +164,7 @@ def start_scheduled_session(schedule):
                 "ram": schedule.get("memory_limit", "1g"),
                 "storage": schedule.get("storage_limit", "2g")
             },
+            headers=ORCH_HEADERS,
             timeout=20
         )
         orch_res.raise_for_status()
@@ -202,6 +208,7 @@ def stop_scheduled_session(schedule):
         orch_res = requests.post(
             f"{ORCHESTRATOR_URL}/stop",
             json={"group": group_key},
+            headers=ORCH_HEADERS,
             timeout=10
         )
         orch_res.raise_for_status()
@@ -1711,7 +1718,7 @@ def delete_schedule(schedule_id):
             group_key = schedule_res.data["users"]["nim"]
             logging.info(f"Admin deleting schedule. Stopping container for group: {group_key}")
             try:
-                requests.post(f"{ORCHESTRATOR_URL}/stop", json={"group": group_key}, timeout=10)
+                requests.post(f"{ORCHESTRATOR_URL}/stop", json={"group": group_key}, headers=ORCH_HEADERS, timeout=10)
             except Exception as e:
                 logging.warning(f"Failed to stop container for {group_key}. It may need manual deletion. Error: {e}")
         else:
@@ -1850,6 +1857,7 @@ def stop_session():
         orch_res = requests.post(
             f"{ORCHESTRATOR_URL}/stop",
             json={"group": group_key},
+            headers=ORCH_HEADERS,
             timeout=10
         )
         orch_res.raise_for_status()

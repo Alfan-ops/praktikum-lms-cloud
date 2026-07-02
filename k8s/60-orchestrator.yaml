@@ -39,6 +39,11 @@ spec:
               value: "10"
             - name: DEPLOY_QUEUE_MAX
               value: "200"
+            # Shared-secret auth: hanya backend (yg punya token sama) boleh
+            # memanggil /deploy & /stop. Cegah pod lab men-spawn/kill lab lain.
+            - name: ORCH_TOKEN
+              valueFrom:
+                secretKeyRef: { name: orch-secret, key: ORCH_TOKEN }
           resources:
             requests: { cpu: "100m", memory: "128Mi" }
             limits: { cpu: "500m", memory: "512Mi" }

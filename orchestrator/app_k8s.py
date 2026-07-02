@@ -53,6 +53,22 @@ INGRESS_CLASS = os.environ.get("INGRESS_CLASS", "nginx")
 IMAGE_PULL_SECRET = os.environ.get("IMAGE_PULL_SECRET", "ocir-secret")
 DEFAULT_MODULE = os.environ.get("DEFAULT_MODULE", "praktikum_ml_iris.ipynb")
 
+# Shared-secret: hanya pemanggil yang membawa header X-Orch-Token yang benar
+# (yaitu backend) boleh membuat/menghapus lab. Mahasiswa di dalam pod lab
+# (Jupyter code-exec) tidak tahu token ini -> panggilan langsung ditolak 401.
+# Bila ORCH_TOKEN kosong, pengecekan dinonaktifkan (kompatibilitas/dev).
+ORCH_TOKEN = os.environ.get("ORCH_TOKEN", "")
+
+
+def require_orch_token():
+    """Return Flask response (401) bila token salah, atau None bila lolos."""
+    if not ORCH_TOKEN:
+        return None  # auth dinonaktifkan
+    if request.headers.get("X-Orch-Token") == ORCH_TOKEN:
+        return None
+    logging.warning("Ditolak: X-Orch-Token tidak valid dari %s", request.remote_addr)
+    return jsonify(success=False, error="Unauthorized"), 401
+
 # ================= AUTOSCALER (dipertahankan dari app.py) =================
 MAX_CONCURRENT_DEPLOYS = int(os.environ.get("MAX_CONCURRENT_DEPLOYS", "5"))
 DEPLOY_QUEUE_MAX = int(os.environ.get("DEPLOY_QUEUE_MAX", "50"))
@@ -282,6 +298,9 @@ def deploy_jupyter_internal(data, safe_group):
 # ================= DEPLOY ROUTE =================
 @app.route("/deploy", methods=["POST"])
 def deploy():
+    denied = require_orch_token()
+    if denied:
+        return denied
     raw = request.json or {}
 
     # BACKWARD COMPAT (payload lama {module_id})
@@ -368,6 +387,9 @@ def get_autoscaler_status():
 # ================= STOP =================
 @app.route("/stop", methods=["POST"])
 def stop():
+    denied = require_orch_token()
+    if denied:
+        return denied
     group = (request.json or {}).get("group")
     if not group:
         return jsonify(success=False, error="Group required"), 400

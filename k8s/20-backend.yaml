@@ -28,6 +28,11 @@ spec:
                 secretKeyRef: { name: supabase-credentials, key: SUPABASE_SERVICE_ROLE_KEY }
             - name: ORCHESTRATOR_URL
               value: "http://orchestrator:4000"
+            # Shared-secret utk autentikasi ke orchestrator (/deploy, /stop).
+            # Harus sama dgn ORCH_TOKEN di deployment orchestrator (60-orchestrator.yaml).
+            - name: ORCH_TOKEN
+              valueFrom:
+                secretKeyRef: { name: orch-secret, key: ORCH_TOKEN }
             - name: REDIS_URL
               value: "redis://redis:6379/0"
             - name: FLASK_APP
