@@ -1,0 +1,56 @@
+# Optimasi scale-out: pre-pull image lab ke SETIAP node lebih awal.
+#
+# Masalah: image lab (~2 GB) baru di-pull saat pod lab pertama dijadwalkan di
+# node baru -> lab pertama di tiap node menunggu ~6 menit (cold pull). Ini
+# memperlambat scale-out saat lonjakan mahasiswa.
+#
+# Solusi: DaemonSet menaruh 1 pod ringan di tiap node yang tugasnya HANYA
+# menarik image lab (initContainer), lalu idle. Setelah image ter-cache di
+# node, pod lab berikutnya start dalam hitungan detik (warm cache ~200ms).
+# DaemonSet juga otomatis menjalankan pre-pull di node baru yang ditambah
+# Cluster Autoscaler.
+#
+# PAKAI:
+#   kubectl apply -f k8s/90-prepull-lab-image.yaml
+#   kubectl -n lms-praktikum rollout status ds/prepull-lab-image
+#   kubectl -n lms-praktikum get pods -l app=prepull -o wide   # 1 per node, Running
+#
+# BERSIHKAN:
+#   kubectl -n lms-praktikum delete ds prepull-lab-image
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: prepull-lab-image
+  namespace: lms-praktikum
+  labels: { app: prepull }
+spec:
+  selector:
+    matchLabels: { app: prepull }
+  template:
+    metadata:
+      labels: { app: prepull }
+    spec:
+      # Pull secret OCIR (sama seperti orchestrator & lab).
+      imagePullSecrets:
+        - name: ocir-secret
+      # Toleransi agar tetap terjadwal di node manapun (termasuk node yang
+      # nanti diberi taint/khusus). Tidak wajib, tapi aman untuk pre-pull.
+      tolerations:
+        - operator: Exists
+      # initContainer menarik image lab; begitu selesai, image tercache di node.
+      initContainers:
+        - name: pull-lab
+          image: hsg.ocir.io/axyfpuh4ahcf/ml-lab-single-user:latest
+          command: ["/bin/sh", "-c", "echo 'Image lab ter-cache di node ini.'"]
+          resources:
+            requests: { cpu: "10m", memory: "16Mi" }
+            limits:   { cpu: "50m", memory: "64Mi" }
+      # Container utama sangat ringan: hanya idle agar pod tetap Running
+      # sehingga DaemonSet mempertahankan cache image di node.
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests: { cpu: "5m", memory: "8Mi" }
+            limits:   { cpu: "20m", memory: "32Mi" }
+      terminationGracePeriodSeconds: 5
