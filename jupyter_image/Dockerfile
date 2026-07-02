@@ -4,7 +4,7 @@
 # (dask, numba, bokeh, sympy, statsmodels, dll). Sekarang: base MINIMAL + hanya library
 # yang benar-benar dipakai notebook praktikum Iris. Image lebih kecil = pull lebih cepat
 # di tiap node baru = scale-out lebih cepat (mengatasi bottleneck yang ditemukan di Fase 6).
-FROM jupyter/minimal-notebook:latest
+FROM docker.io/jupyter/minimal-notebook:latest
 
 # Hanya library yang dipakai praktikum_ml_iris.ipynb:
 # pandas, scikit-learn, matplotlib, seaborn (numpy/scipy ikut sebagai dependensi).
