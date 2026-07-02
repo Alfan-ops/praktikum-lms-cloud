@@ -1,6 +1,6 @@
 # Uji beban Fase 6: kirim N permintaan Launch Lab konkuren ke orchestrator.
 # Tiap permintaan membuat 1 pod lab -> Cluster Autoscaler menambah node.
-# Atur jumlah lewat env N (default 30). Jalankan sebagai Job sekali pakai.
+# Atur jumlah lewat env LAB_COUNT (default 30). Jalankan sebagai Job sekali pakai.
 #
 # PAKAI:
 #   kubectl apply -f k8s/loadtest-labs.yaml
@@ -23,14 +23,14 @@ spec:
         - name: loadtest
           image: docker.io/curlimages/curl:latest
           env:
-            - name: N
+            - name: LAB_COUNT
               value: "30"          # jumlah "mahasiswa" simultan (ubah utk skala lebih besar)
           command: ["/bin/sh", "-c"]
           args:
             - |
-              echo "Mengirim $N permintaan Launch Lab konkuren ke orchestrator..."
+              echo "Mengirim $LAB_COUNT permintaan Launch Lab konkuren ke orchestrator..."
               start=$(date +%s)
-              for i in $(seq 1 "$N"); do
+              for i in $(seq 1 "$LAB_COUNT"); do
                 (
                   code=$(curl -s -o /dev/null -w "%{http_code}" \
                     -X POST http://orchestrator:4000/deploy \
@@ -41,6 +41,6 @@ spec:
               done
               wait
               end=$(date +%s)
-              echo "SELESAI: $N permintaan terkirim dalam $((end-start)) detik."
+              echo "SELESAI: $LAB_COUNT permintaan terkirim dalam $((end-start)) detik."
               echo "Pantau: kubectl -n lms-praktikum get pods -l app=lab | grep -c Running"
               echo "        kubectl get nodes"
