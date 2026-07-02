@@ -98,7 +98,11 @@
       "PowerShell($paths = @\\(\"C:\\\\Program Files\\\\LibreOffice\\\\program\\\\soffice.exe\",\"C:\\\\Program Files \\(x86\\)\\\\LibreOffice\\\\program\\\\soffice.exe\"\\); $found=$paths | Where-Object { Test-Path $_ }; if \\($found\\) { $found } else { \"NOT FOUND\" })",
       "Bash(mkdir -p dokumen_praktikum)",
       "Bash(cp \"C:/Users/aqila/AppData/Local/Temp/claude/C--Users-aqila-Downloads-Tugas-Akhir---Praktikum---LMS-Project-praktikum-lms-project-integrasi-backend/d082ad67-b66b-4431-9a31-4cc8f0386745/scratchpad/out/Modul_Praktikum_ML_Iris.docx\" \"C:/Users/aqila/AppData/Local/Temp/claude/C--Users-aqila-Downloads-Tugas-Akhir---Praktikum---LMS-Project-praktikum-lms-project-integrasi-backend/d082ad67-b66b-4431-9a31-4cc8f0386745/scratchpad/out/Logbook_Praktikum_ML_Iris.docx\" dokumen_praktikum/)",
-      "Bash(python -m py_compile backend/management.py backend/seed_telekom.py)"
+      "Bash(python -m py_compile backend/management.py backend/seed_telekom.py)",
+      "Bash(node gen_telkom.js ./out)",
+      "Bash(python -c \"import pandas,matplotlib; print\\('deps OK'\\)\")",
+      "Bash(python -)",
+      "Bash(python \"C:/Users/aqila/Downloads/Tugas Akhir - Praktikum - LMS Project/praktikum-lms-project-integrasi-backend/plot_autoscale.py\" test_autoscale.csv --out test_plot.png --minutes)"
     ]
   }
 }
