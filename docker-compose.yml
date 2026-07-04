@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Service to build the Jupyter single-user image
   jupyter-image:
@@ -93,8 +91,8 @@ services:
       - USER_DATA_PATH=/app/user_data
       # Path host (dilihat oleh Docker Desktop) tempat user_data & modules berada.
       # WAJIB sesuai lokasi proyek di mesin ini (drive C), bukan lokasi lama (drive D).
-      - HOST_USER_DATA_PATH=/host_mnt/c/Users/aqila/Downloads/Tugas Akhir - Praktikum - LMS Project/praktikum-lms-project-integrasi-backend/orchestrator/user_data
-      - HOST_MODULES_PATH=/host_mnt/c/Users/aqila/Downloads/Tugas Akhir - Praktikum - LMS Project/praktikum-lms-project-integrasi-backend/orchestrator/modules
+      - HOST_USER_DATA_PATH=${HOST_PROJECT_PATH}/orchestrator/user_data
+      - HOST_MODULES_PATH=${HOST_PROJECT_PATH}/orchestrator/modules
       # Autoscaler orchestrator: maks docker run bersamaan
       - MAX_CONCURRENT_DEPLOYS=5
       # Maks antrian async yang diizinkan

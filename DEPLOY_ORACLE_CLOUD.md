@@ -101,16 +101,22 @@ cp .env.example .env
 nano .env        # isi SUPABASE_URL & SUPABASE_SERVICE_ROLE_KEY
 ```
 
-### Sesuaikan `docker-compose.yml` untuk VM Linux
-Edit `nano docker-compose.yml`, ubah di service **orchestrator**:
+### Sesuaikan konfigurasi untuk VM Linux
+
+**1) Path host di `.env`** — di Linux TIDAK pakai `/host_mnt/...`, pakai path asli VM.
+Edit `nano .env`, ubah baris:
+
+```
+HOST_PROJECT_PATH=/home/ubuntu/praktikum-lms-cloud
+```
+
+(Cukup di `.env`; `docker-compose.yml` tidak perlu diedit untuk path.)
+
+**2) `ACCESSIBLE_HOST` → IP publik VM** (agar URL Jupyter bisa diakses dari luar).
+Edit `nano docker-compose.yml`, di service **orchestrator**:
 
 ```yaml
-# 1) ACCESSIBLE_HOST → IP publik VM (agar URL Jupyter bisa diakses dari luar)
 - ACCESSIBLE_HOST=152.x.x.x
-
-# 2) Path host: di Linux TIDAK pakai /host_mnt/c/. Pakai path asli VM:
-- HOST_USER_DATA_PATH=/home/ubuntu/praktikum-lms-cloud/orchestrator/user_data
-- HOST_MODULES_PATH=/home/ubuntu/praktikum-lms-cloud/orchestrator/modules
 ```
 
 ### Build & jalankan

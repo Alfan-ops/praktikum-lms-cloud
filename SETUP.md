@@ -51,29 +51,27 @@ SUPABASE_SERVICE_ROLE_KEY=isi_service_role_key_anda
 
 ---
 
-## 4. Perbaiki Path di `docker-compose.yml` (WAJIB)
+## 4. Sesuaikan `HOST_PROJECT_PATH` di `.env` (WAJIB)
 
-Di service `orchestrator` terdapat path **absolut** yang menunjuk ke lokasi folder.
-Path ini HARUS disesuaikan dengan lokasi proyek di device baru.
+Orchestrator perlu tahu lokasi folder proyek **seperti dilihat oleh Docker daemon**
+(untuk bind-mount `user_data` & `modules`). Ini diatur lewat satu variabel di `.env`
+— **tidak perlu lagi menyentuh `docker-compose.yml`.**
 
-Cari dua baris ini:
+Buka `.env`, sesuaikan baris:
 
-```yaml
-- HOST_USER_DATA_PATH=/host_mnt/c/Users/aqila/Downloads/.../orchestrator/user_data
-- HOST_MODULES_PATH=/host_mnt/c/Users/aqila/Downloads/.../orchestrator/modules
+```
+HOST_PROJECT_PATH=/host_mnt/d/praktikum-lms-cloud-latest
 ```
 
-Ubah menjadi lokasi folder proyek di device baru. Format penulisan path Docker Desktop
-di Windows: drive ditulis huruf kecil setelah `/host_mnt/`.
+Format penulisan path Docker Desktop di Windows: drive ditulis huruf kecil setelah
+`/host_mnt/`. Contoh jika proyek ada di `D:\Kuliah\praktikum-lms-cloud`:
 
-Contoh jika proyek ada di `D:\Kuliah\praktikum-lms-cloud`:
-
-```yaml
-- HOST_USER_DATA_PATH=/host_mnt/d/Kuliah/praktikum-lms-cloud/orchestrator/user_data
-- HOST_MODULES_PATH=/host_mnt/d/Kuliah/praktikum-lms-cloud/orchestrator/modules
+```
+HOST_PROJECT_PATH=/host_mnt/d/Kuliah/praktikum-lms-cloud
 ```
 
 > Path yang salah = error "Could not find path: praktikum_ml_iris.ipynb" saat Launch Lab.
+> Verifikasi hasil substitusi dengan: `docker compose config | grep HOST_USER_DATA_PATH`
 
 ---
 
@@ -132,7 +130,7 @@ Yang **wajib** disiapkan manual di device baru:
 1. Install Docker Desktop + Git
 2. `git clone` repo
 3. Buat `.env` (salin dari `.env.example`, isi kunci Supabase)
-4. Perbaiki `HOST_USER_DATA_PATH` & `HOST_MODULES_PATH` di `docker-compose.yml`
+4. Sesuaikan `HOST_PROJECT_PATH` di `.env` dengan lokasi proyek di device ini
 5. `docker-compose build && docker-compose up -d`
 
 Sisanya otomatis.

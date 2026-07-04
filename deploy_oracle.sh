@@ -55,17 +55,25 @@ sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 8888:9000 -j ACCEPT
 sudo apt-get install -y netfilter-persistent >/dev/null 2>&1 || true
 sudo netfilter-persistent save >/dev/null 2>&1 || true
 
-# --- 4. Sesuaikan docker-compose.yml untuk Linux ---
-echo "[i] Menyesuaikan docker-compose.yml (IP publik & path Linux)..."
+# --- 4. Sesuaikan konfigurasi untuk Linux ---
+echo "[i] Menyesuaikan konfigurasi (IP publik di compose, path host di .env)..."
 # backup sekali
 [ -f docker-compose.yml.bak ] || cp docker-compose.yml docker-compose.yml.bak
 
+# ACCESSIBLE_HOST tetap di docker-compose.yml (IP publik VM)
 sed -i "s|ACCESSIBLE_HOST=.*|ACCESSIBLE_HOST=$PUBLIC_IP|g" docker-compose.yml
-sed -i "s|HOST_USER_DATA_PATH=.*|HOST_USER_DATA_PATH=$PROJECT_DIR/orchestrator/user_data|g" docker-compose.yml
-sed -i "s|HOST_MODULES_PATH=.*|HOST_MODULES_PATH=$PROJECT_DIR/orchestrator/modules|g" docker-compose.yml
+
+# Path host kini lewat HOST_PROJECT_PATH di .env (bukan lagi hardcoded di compose).
+# Di Linux pakai path asli VM, bukan /host_mnt/...
+if grep -q "^HOST_PROJECT_PATH=" .env; then
+  sed -i "s|^HOST_PROJECT_PATH=.*|HOST_PROJECT_PATH=$PROJECT_DIR|g" .env
+else
+  echo "HOST_PROJECT_PATH=$PROJECT_DIR" >> .env
+fi
 
 echo "[i] Hasil penyesuaian:"
-grep -E "ACCESSIBLE_HOST|HOST_USER_DATA_PATH|HOST_MODULES_PATH" docker-compose.yml | sed 's/^/    /'
+grep -E "ACCESSIBLE_HOST" docker-compose.yml | sed 's/^/    /'
+grep -E "^HOST_PROJECT_PATH=" .env | sed 's/^/    /'
 
 # --- 5. Build & jalankan ---
 echo "[i] Build & menjalankan container (bisa 5-15 menit pertama kali)..."
