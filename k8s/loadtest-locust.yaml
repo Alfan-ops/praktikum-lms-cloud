@@ -16,10 +16,14 @@ metadata:
   namespace: lms-praktikum
 data:
   locustfile.py: |
-    import uuid, threading
+    import os, uuid, threading
     from locust import HttpUser, task, between, events
 
     NOTEBOOK = "praktikum_ml_iris.ipynb"
+    # Token auth orchestrator (dari env, di-inject dari secret orch-secret).
+    # Tanpa header X-Orch-Token, /deploy ditolak 401 -> semua Launch Lab gagal.
+    ORCH_TOKEN = os.environ.get("ORCH_TOKEN", "")
+    AUTH_HEADERS = {"X-Orch-Token": ORCH_TOKEN}
     _counter = 0
     _lock = threading.Lock()
 
@@ -38,6 +42,7 @@ data:
             with self.client.post(
                 "/deploy",
                 json={"group": g, "tool": "jupyter", "module": NOTEBOOK},
+                headers=AUTH_HEADERS,
                 name="POST /deploy (Launch Lab)",
                 catch_response=True,
             ) as r:
@@ -67,6 +72,11 @@ spec:
       containers:
         - name: locust
           image: docker.io/locustio/locust:latest
+          env:
+            # Token auth orchestrator; locustfile mengirimnya sebagai X-Orch-Token.
+            - name: ORCH_TOKEN
+              valueFrom:
+                secretKeyRef: { name: orch-secret, key: ORCH_TOKEN }
           args:
             - "-f"
             - "/mnt/locust/locustfile.py"
