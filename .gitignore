@@ -40,3 +40,9 @@ Thumbs.db
 *.log
 *.pdf
 ~$*
+
+# ===== Artefak instalasi pip (prefix rusak) — JANGAN commit =====
+/Lib/
+/Scripts/
+/share/
+/bin/

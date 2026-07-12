@@ -1,0 +1,126 @@
+# Uji KAPASITAS per node (1/2/3 node) — Locust dengan beban BERTINGKAT (step ramp).
+#
+# Beda dgn loadtest-locust.yaml (beban rata): file ini menaikkan jumlah user
+# bertahap 5 -> 54 selama ~4,5 menit, sehingga terlihat pada jumlah user berapa
+# sebuah konfigurasi node mulai jenuh (pod Pending / response time melonjak).
+#
+# PAKAI (lihat PANDUAN_UJI_KAPASITAS_NODE.md untuk langkah lengkap 1/2/3 node):
+#   kubectl apply -f k8s/loadtest-locust-kapasitas.yaml
+#   POD=$(kubectl -n lms-praktikum get pod -l app=locust-cap -o jsonpath='{.items[0].metadata.name}')
+#   kubectl -n lms-praktikum exec -it "$POD" -- \
+#     locust -f /mnt/locust/locustfile.py --host http://orchestrator:4000 \
+#     --headless --html /tmp/cap.html --csv /tmp/cap
+#   (jumlah user & durasi diatur oleh LoadTestShape di skrip, BUKAN -u/-t)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: locust-cap-script
+  namespace: lms-praktikum
+data:
+  locustfile.py: |
+    import os, uuid, threading
+    from locust import HttpUser, task, between, LoadTestShape
+
+    NOTEBOOK = "praktikum_ml_iris.ipynb"
+    ORCH_TOKEN = os.environ.get("ORCH_TOKEN", "")
+    AUTH_HEADERS = {"X-Orch-Token": ORCH_TOKEN}
+    _counter = 0
+    _lock = threading.Lock()
+
+    def next_group():
+        global _counter
+        with _lock:
+            _counter += 1
+            return f"cap-{_counter}-{uuid.uuid4().hex[:6]}"
+
+    class LabUser(HttpUser):
+        # 1 user virtual = 1 mahasiswa yang Launch Lab sekali, lalu memantau status.
+        wait_time = between(2, 5)
+
+        def on_start(self):
+            g = next_group()
+            with self.client.post(
+                "/deploy",
+                json={"group": g, "tool": "jupyter", "module": NOTEBOOK},
+                headers=AUTH_HEADERS,
+                name="POST /deploy (Launch Lab)",
+                catch_response=True,
+            ) as r:
+                if r.status_code in (200, 202):
+                    r.success()
+                else:
+                    r.failure(f"status {r.status_code}: {r.text[:100]}")
+
+        @task
+        def check_status(self):
+            self.client.get("/autoscaler/status", name="GET /autoscaler/status")
+
+    class StepLoad(LoadTestShape):
+        # (durasi_detik_kumulatif, target_user, spawn_rate)
+        # Naik 5 user tiap 60 dtk. Tiap user = 1 lab baru -> lab kumulatif = target user.
+        stages = [   # 30 dtk/tahap -> total ramp ~4,5 menit
+            (30,   5, 5),
+            (60,  10, 5),
+            (90,  15, 5),
+            (120, 20, 5),
+            (150, 25, 5),
+            (180, 30, 5),
+            (210, 38, 5),
+            (240, 46, 5),
+            (270, 54, 5),
+        ]
+        def tick(self):
+            t = self.get_run_time()
+            for end, users, rate in self.stages:
+                if t < end:
+                    return (users, rate)
+            return None  # selesai -> Locust berhenti sendiri
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust-cap
+  namespace: lms-praktikum
+  labels: { app: locust-cap }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: locust-cap }
+  template:
+    metadata:
+      labels: { app: locust-cap }
+    spec:
+      containers:
+        - name: locust
+          image: docker.io/locustio/locust:latest
+          env:
+            - name: ORCH_TOKEN
+              valueFrom:
+                secretKeyRef: { name: orch-secret, key: ORCH_TOKEN }
+          args:
+            - "-f"
+            - "/mnt/locust/locustfile.py"
+            - "--host"
+            - "http://orchestrator:4000"
+          ports:
+            - containerPort: 8089
+          volumeMounts:
+            - name: script
+              mountPath: /mnt/locust
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: script
+          configMap: { name: locust-cap-script }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: locust-cap
+  namespace: lms-praktikum
+spec:
+  selector: { app: locust-cap }
+  ports:
+    - port: 8089
+      targetPort: 8089
